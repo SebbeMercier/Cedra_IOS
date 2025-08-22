@@ -177,16 +177,8 @@ struct LoginView: View {
             isLoading = false
             switch result {
             case .success(let res):
-                let user = User(
-                    id: res.user.id,
-                    name: res.user.name,
-                    email: res.user.email,
-                    token: res.token,
-                    isAdmin: res.user.isAdmin,
-                    companyId: res.user.companyId,
-                    companyName: res.user.companyName,
-                    isCompanyAdmin: res.user.isCompanyAdmin ?? false
-                )
+                // ✅ Conversion directe
+                let user = User(from: res.user, token: res.token)
 
                 Task { @MainActor in
                     AuthManager.shared.saveSession(user: user)

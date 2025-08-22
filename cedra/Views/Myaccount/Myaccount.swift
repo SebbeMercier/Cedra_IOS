@@ -15,20 +15,15 @@ struct MyAccount: View {
                     settingsSection
                     helpSection
 
-                    // ✅ Espace admin global (de l'app)
+                    // Espace admin Cedra
                     if auth.currentUser?.isAdmin == true {
                         adminSection
                     }
 
-                    // ✅ Gestion société (si admin d'une entreprise)
-                    if (auth.currentUser?.isCompanyAdmin ?? false),
-                       let companyName = auth.currentUser?.companyName,
-                       !companyName.isEmpty {
-                        companyAdminSection(companyName: companyName)
+                    // Espace admin entreprise
+                    if auth.currentUser?.isCompanyAdmin == true {
+                        companyAdminSection(companyName: auth.currentUser?.companyName ?? "Mon entreprise")
                     }
-
-
-
                     Spacer()
                 }
                 .padding(.top)

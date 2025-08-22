@@ -11,7 +11,11 @@ import SwiftUI
 struct cedraApp: App {
     @StateObject var auth = AuthManager.shared
     @StateObject var cartManager = CartManager()
-   
+
+    init() {
+        AuthManager.shared.loadSession()
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {

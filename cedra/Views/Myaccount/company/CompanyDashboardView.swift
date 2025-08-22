@@ -18,9 +18,8 @@ struct CompanyDashboardView: View {
                 .padding()
 
             // Exemple de sections de gestion
-            NavigationLink("📦 Produits", destination: Text("Gestion des produits"))
-            NavigationLink("👥 Utilisateurs", destination: Text("Gestion des utilisateurs"))
-            NavigationLink("📊 Statistiques", destination: Text("Vue des statistiques"))
+            NavigationLink("👥 Utilisateurs", destination: UsersCompanyDashboard(companyName: companyName))
+            NavigationLink("📊 Statistiques", destination: CompanyStatistics())
 
             Spacer()
         }
@@ -28,4 +27,3 @@ struct CompanyDashboardView: View {
         .navigationTitle("Espace Société")
     }
 }
-

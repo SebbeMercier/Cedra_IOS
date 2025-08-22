@@ -23,6 +23,8 @@ struct RegisterView: View {
                 TextField("Nom", text: $name)
                 TextField("Email", text: $email)
                     .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
                 SecureField("Mot de passe", text: $password)
             }
             
@@ -77,18 +79,14 @@ struct RegisterView: View {
         
         AuthService.shared.register(payload: payload) { result in
             switch result {
-            case .success(let response):
-                let user = User(id: response.user.id,
-                                name: response.user.name,
-                                email: response.user.email,
-                                token: response.token,
-                                isAdmin: response.user.isAdmin,
-                                companyId: response.user.companyId,
-                                companyName: response.user.companyName,
-                                isCompanyAdmin: response.user.isCompanyAdmin ?? false
-                )
+            case .success(let res):
+                // ✅ Utilisation de l’init pratique dans User.swift
+                let user = User(from: res.user, token: res.token)
                 
-                auth.saveSession(user: user)
+                Task { @MainActor in
+                    auth.saveSession(user: user)
+                }
+                
             case .failure(let error):
                 errorMessage = error.localizedDescription
             }

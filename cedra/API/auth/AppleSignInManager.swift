@@ -27,7 +27,9 @@ class AppleSignInManager: NSObject, ASAuthorizationControllerDelegate {
         controller.performRequests()
     }
     
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+    // MARK: - Delegate
+    func authorizationController(controller: ASAuthorizationController,
+                                 didCompleteWithAuthorization authorization: ASAuthorization) {
         if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
            let identityToken = appleIDCredential.identityToken,
            let tokenString = String(data: identityToken, encoding: .utf8) {
@@ -35,20 +37,15 @@ class AppleSignInManager: NSObject, ASAuthorizationControllerDelegate {
             AuthService.shared.socialLogin(provider: "apple", token: tokenString) { result in
                 switch result {
                 case .success(let res): // res: LoginResponse
-                    let user = User(
-                        id: res.user.id,
-                        name: res.user.name,
-                        email: res.user.email,
-                        token: res.token,
-                        isAdmin: res.user.isAdmin,
-                        companyId: res.user.companyId,
-                        companyName: res.user.companyName,
-                        isCompanyAdmin: res.user.isCompanyAdmin ?? false
-                    )
+                    let user = User(from: res.user, token: res.token)
 
-                    AuthManager.shared.saveSession(user: user)
+                    // Enregistre la session
+                    Task { @MainActor in
+                        AuthManager.shared.saveSession(user: user)
+                    }
+
                 case .failure(let error):
-                    print("Erreur Apple Sign In: \(error)")
+                    print("Erreur Apple Login:", error)
                 }
             }
         }
@@ -56,25 +53,27 @@ class AppleSignInManager: NSObject, ASAuthorizationControllerDelegate {
 }
 
 // MARK: - Helpers
-private func sha256(_ input: String) -> String {
-    let inputData = Data(input.utf8)
-    let hashedData = SHA256.hash(data: inputData)
-    return hashedData.map { String(format: "%02x", $0) }.joined()
-}
-
-private func randomNonceString(length: Int = 32) -> String {
-    let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
-    var result = ""
-    var remainingLength = length
-
-    while remainingLength > 0 {
-        var random: UInt8 = 0
-        _ = SecRandomCopyBytes(kSecRandomDefault, 1, &random)
-        if random < charset.count {
-            result.append(charset[Int(random)])
-            remainingLength -= 1
-        }
+extension AppleSignInManager {
+    fileprivate func sha256(_ input: String) -> String {
+        let inputData = Data(input.utf8)
+        let hashedData = SHA256.hash(data: inputData)
+        return hashedData.map { String(format: "%02x", $0) }.joined()
     }
-    return result
-}
 
+    fileprivate func randomNonceString(length: Int = 32) -> String {
+        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var result = ""
+        var remainingLength = length
+
+        while remainingLength > 0 {
+            var random: UInt8 = 0
+            if SecRandomCopyBytes(kSecRandomDefault, 1, &random) == errSecSuccess {
+                if random < charset.count {
+                    result.append(charset[Int(random)])
+                    remainingLength -= 1
+                }
+            }
+        }
+        return result
+    }
+}

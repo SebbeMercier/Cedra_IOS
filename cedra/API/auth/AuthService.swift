@@ -7,34 +7,55 @@
 
 import Foundation
 
-// MARK: - Modèles de réponse
-struct APIUser: Codable {
-    let id: Int
-    let name: String
-    let email: String
-    let isAdmin: Bool
-    let companyId: Int?
-    let companyName: String?
-    let isCompanyAdmin: Bool? // ← optionnel ici
+// MARK: - Wrappers tolérants
+@propertyWrapper
+struct StringOrInt: Decodable {
+    var wrappedValue: String
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let s = try? c.decode(String.self) { wrappedValue = s; return }
+        if let i = try? c.decode(Int.self)    { wrappedValue = String(i); return }
+        throw DecodingError.typeMismatch(String.self,
+            .init(codingPath: decoder.codingPath, debugDescription: "Expected String or Int"))
+    }
 }
 
+@propertyWrapper
+struct StringOrIntOptional: Decodable {
+    var wrappedValue: String?
+    init(from decoder: Decoder) throws {
+        guard let c = try? decoder.singleValueContainer() else { wrappedValue = nil; return }
+        if let s = try? c.decode(String.self) { wrappedValue = s; return }
+        if let i = try? c.decode(Int.self)    { wrappedValue = String(i); return }
+        wrappedValue = nil
+    }
+}
 
-struct LoginResponse: Codable {
+// MARK: - Modèles de réponse
+struct APIUser: Decodable {
+    @StringOrInt var id: String
+    let name: String?
+    let email: String
+    @StringOrIntOptional var companyId: String?
+    let companyName: String?
+    let isAdmin: Bool?
+    let isCompanyAdmin: Bool?
+}
+
+struct LoginResponse: Decodable {
     let token: String
     let user: APIUser
 }
 
-struct MessageResponse: Codable {
-    let message: String
-}
-
-struct EmptyResponse: Codable {} // ✅ Réponse vide tolérée
+struct MessageResponse: Decodable { let message: String }
+struct EmptyResponse: Decodable {}
 
 // MARK: - Service d'authentification
 final class AuthService {
     static let shared = AuthService()
     private init() {}
 
+    // ⚠️ Vérifie ton chemin : /auth ou /api/auth selon ton server.js
     private let baseURL = "http://192.168.0.200:5000/api/auth"
 
     private lazy var session: URLSession = {
@@ -42,6 +63,12 @@ final class AuthService {
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 30
         return URLSession(configuration: config)
+    }()
+
+    private let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        return d
     }()
 
     // MARK: - Connexion
@@ -53,15 +80,14 @@ final class AuthService {
     }
 
     // MARK: - Inscription
-    func register(payload: [String: Any],
-                  completion: @escaping (Result<LoginResponse, Error>) -> Void) {
+    func register(payload: [String: Any], completion: @escaping (Result<LoginResponse, Error>) -> Void) {
         request(path: "/register",
                 body: payload,
                 expecting: LoginResponse.self,
                 completion: completion)
     }
 
-    // MARK: - Connexion via réseau social
+    // MARK: - Connexion sociale
     func socialLogin(provider: String, token: String, completion: @escaping (Result<LoginResponse, Error>) -> Void) {
         request(path: "/social",
                 body: ["provider": provider, "token": token],
@@ -98,28 +124,38 @@ final class AuthService {
                                                userInfo: [NSLocalizedDescriptionKey: "Pas de réponse HTTP"])))
             }
 
+            let status = http.statusCode
+            let ctype = http.allHeaderFields["Content-Type"] as? String ?? "?"
+            let size = data?.count ?? 0
+            print("📡 \(req.httpMethod ?? "?") \(url.absoluteString) → \(status) | \(ctype) | \(size) bytes")
+
             guard let data = data, !data.isEmpty else {
                 if T.self == EmptyResponse.self {
                     return finish(.success(EmptyResponse() as! T))
-                } else {
-                    return finish(.failure(NSError(domain: "AuthService", code: -3,
-                                                   userInfo: [NSLocalizedDescriptionKey: "Réponse vide"])))
                 }
+                return finish(.failure(NSError(domain: "AuthService", code: -3,
+                                               userInfo: [NSLocalizedDescriptionKey: "Réponse vide"])))
             }
 
-            guard (200...299).contains(http.statusCode) else {
-                if let apiError = try? JSONDecoder().decode(MessageResponse.self, from: data) {
-                    return finish(.failure(NSError(domain: "AuthService", code: http.statusCode,
-                                                   userInfo: [NSLocalizedDescriptionKey: apiError.message])))
+            if let raw = String(data: data, encoding: .utf8) {
+                print("📥 RAW:", raw)
+            }
+
+            guard (200...299).contains(status) else {
+                if let apiError = try? self.decoder.decode(MessageResponse.self, from: data) {
+                    let msg = apiError.message
+                    return finish(.failure(NSError(domain: "AuthService", code: status,
+                                                   userInfo: [NSLocalizedDescriptionKey: msg])))
                 }
-                return finish(.failure(NSError(domain: "AuthService", code: http.statusCode,
-                                               userInfo: [NSLocalizedDescriptionKey: "Erreur serveur \(http.statusCode)"])))
+                return finish(.failure(NSError(domain: "AuthService", code: status,
+                                               userInfo: [NSLocalizedDescriptionKey: "Erreur serveur \(status)"])))
             }
 
             do {
-                let object = try JSONDecoder().decode(T.self, from: data)
+                let object = try self.decoder.decode(T.self, from: data)
                 finish(.success(object))
             } catch {
+                print("❌ Decode error:", error)
                 finish(.failure(error))
             }
         }.resume()

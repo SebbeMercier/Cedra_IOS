@@ -28,24 +28,16 @@ class FacebookSignInManager {
             AuthService.shared.socialLogin(provider: "facebook", token: tokenString) { result in
                 switch result {
                 case .success(let res):
-                    // ✅ Création d’un User à partir de LoginResponse
-                    let user = User(
-                        id: res.user.id,
-                        name: res.user.name,
-                        email: res.user.email,
-                        token: res.token,
-                        isAdmin: res.user.isAdmin,
-                        companyId: res.user.companyId,
-                        companyName: res.user.companyName,
-                        isCompanyAdmin: res.user.isCompanyAdmin ?? false
-                    )
+                    // ✅ Utiliser `res` (et pas response)
+                    let user = User(from: res.user, token: res.token)
 
+                    // Enregistre la session
                     Task { @MainActor in
                         AuthManager.shared.saveSession(user: user)
                     }
 
                 case .failure(let error):
-                    print("Erreur Facebook Login: \(error)")
+                    print("Erreur Facebook Login:", error)
                 }
             }
         }
