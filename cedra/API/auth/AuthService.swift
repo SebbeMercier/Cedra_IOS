@@ -36,18 +36,17 @@ struct APIUser: Decodable {
     @StringOrInt var id: String
     let name: String?
     let email: String
+    let role: String?
     @StringOrIntOptional var companyId: String?
     let companyName: String?
-    let isAdmin: Bool?
     let isCompanyAdmin: Bool?
 }
 
-struct LoginResponse: Decodable {
-    let token: String
-    let user: APIUser
+/// ✅ Corrigé pour coller au backend (`error` et pas `message`)
+struct MessageResponse: Decodable {
+    let error: String
 }
 
-struct MessageResponse: Decodable { let message: String }
 struct EmptyResponse: Decodable {}
 
 // MARK: - Service d'authentification
@@ -55,8 +54,8 @@ final class AuthService {
     static let shared = AuthService()
     private init() {}
 
-    // ⚠️ Vérifie ton chemin : /auth ou /api/auth selon ton server.js
-    private let baseURL = "http://192.168.0.200:5000/api/auth"
+    // 👉 Ton backend Go tourne sur 8080
+    private let baseURL = "http://192.168.1.200:8080/api/auth"
 
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.default
@@ -79,8 +78,8 @@ final class AuthService {
                 completion: completion)
     }
 
-    // MARK: - Inscription
-    func register(payload: [String: Any], completion: @escaping (Result<LoginResponse, Error>) -> Void) {
+    func register(payload: [String: Any],
+                  completion: @escaping (Result<LoginResponse, Error>) -> Void) {
         request(path: "/register",
                 body: payload,
                 expecting: LoginResponse.self,
@@ -88,7 +87,8 @@ final class AuthService {
     }
 
     // MARK: - Connexion sociale
-    func socialLogin(provider: String, token: String, completion: @escaping (Result<LoginResponse, Error>) -> Void) {
+    func socialLogin(provider: String, token: String,
+                     completion: @escaping (Result<LoginResponse, Error>) -> Void) {
         request(path: "/social",
                 body: ["provider": provider, "token": token],
                 expecting: LoginResponse.self,
@@ -142,8 +142,9 @@ final class AuthService {
             }
 
             guard (200...299).contains(status) else {
+                // ✅ Ici on décode le message d'erreur custom { "error": "..." }
                 if let apiError = try? self.decoder.decode(MessageResponse.self, from: data) {
-                    let msg = apiError.message
+                    let msg = apiError.error
                     return finish(.failure(NSError(domain: "AuthService", code: status,
                                                    userInfo: [NSLocalizedDescriptionKey: msg])))
                 }
@@ -161,3 +162,4 @@ final class AuthService {
         }.resume()
     }
 }
+

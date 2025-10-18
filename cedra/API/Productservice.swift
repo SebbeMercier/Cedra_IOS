@@ -11,7 +11,7 @@ class ProductService {
     static let shared = ProductService()
 
     func fetchProducts(completion: @escaping (Result<[Product], Error>) -> Void) {
-        guard let url = URL(string: "http://192.168.0.200:5000/api/products/search?q=") else {
+        guard let url = URL(string: "http://192.168.1.200:5000/api/products/search?q=") else {
             completion(.failure(NSError(domain: "URL invalide", code: 0)))
             return
         }

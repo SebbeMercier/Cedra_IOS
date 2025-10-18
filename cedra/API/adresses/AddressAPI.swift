@@ -1,119 +1,145 @@
 import Foundation
 
-enum AddressType: String, Codable { case user, company }
+struct AddressAPI {
+    static let baseURL = "http://192.168.1.200:8080/api/addresses"
 
-enum AddressAPIError: Error, LocalizedError {
-    case noToken, badResponse(String)
-    var errorDescription: String? {
-        switch self {
-        case .noToken: return "Session expirée."
-        case .badResponse(let s): return s
-        }
-    }
-}
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 30
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }()
 
-enum AddressAPI {
-    static let base = URL(string: "http://192.168.0.200:5000/api")!
-
+    // MARK: - Liste mes adresses
     static func listMine() async throws -> [Address] {
-        guard let token = await AuthManager.shared.token else { return [] }
-
-        var req = URLRequest(url: base.appendingPathComponent("addresses/mine"))
-        req.httpMethod = "GET"
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse else {
-            throw AddressAPIError.badResponse("Pas de réponse HTTP")
+        guard let token = await AuthManager.shared.token else {
+            throw APIError.unauthorized
         }
-        guard (200...299).contains(http.statusCode) else {
-            let s = String(data: data, encoding: .utf8) ?? "Erreur \(http.statusCode)"
-            throw AddressAPIError.badResponse(s)
+
+        guard let url = URL(string: "\(baseURL)/mine") else {
+            throw APIError.invalidURL
         }
-        return try JSONDecoder().decode([Address].self, from: data)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard http.statusCode == 200 else { throw APIError.httpError(http.statusCode) }
+
+        do {
+            return try JSONDecoder().decode([Address].self, from: data)
+        } catch {
+            print("❌ Décodage addresses:", error)
+            throw APIError.decodingError
+        }
     }
 
+    // MARK: - Créer une adresse
     static func create(
         street: String,
         postalCode: String,
         city: String,
         country: String,
-        type: AddressType,
-        companyId: Int? = nil,
-        privateCompany: Bool = true
-    ) async throws -> Int {
-        guard let token = await AuthManager.shared.token else { throw AddressAPIError.noToken }
+        type: AddressType = .user,
+        companyId: String? = nil
+    ) async throws -> Address {
+        guard let token = await AuthManager.shared.token else {
+            throw APIError.unauthorized
+        }
 
-        var req = URLRequest(url: base.appendingPathComponent("addresses"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        guard let url = URL(string: baseURL) else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         var body: [String: Any] = [
             "street": street,
             "postalCode": postalCode,
             "city": city,
             "country": country,
-            "type": type.rawValue
+            "type": type.rawValue // ✅ Go attend un champ "type"
         ]
-        if let companyId { body["companyId"] = companyId }
-        if type == .company { body["privateCompany"] = privateCompany }
 
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse else {
-            throw AddressAPIError.badResponse("Pas de réponse HTTP")
-        }
-        guard (200...299).contains(http.statusCode) else {
-            let s = String(data: data, encoding: .utf8) ?? "Erreur \(http.statusCode)"
-            throw AddressAPIError.badResponse(s)
+        if let companyId = companyId {
+            body["companyId"] = companyId
         }
 
-        struct Created: Decodable { let id: Int }
-        return try JSONDecoder().decode(Created.self, from: data).id
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard http.statusCode == 201 else { throw APIError.httpError(http.statusCode) }
+
+        do {
+            return try JSONDecoder().decode(Address.self, from: data)
+        } catch {
+            print("❌ Décodage création:", error)
+            throw APIError.decodingError
+        }
+    }
+
+    // MARK: - Définir comme adresse par défaut
+    static func makeDefault(id: String) async throws {
+        guard let token = await AuthManager.shared.token else {
+            throw APIError.unauthorized
+        }
+
+        guard let url = URL(string: "\(baseURL)/\(id)/default") else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard http.statusCode == 200 else { throw APIError.httpError(http.statusCode) }
+    }
+
+    // MARK: - Supprimer une adresse
+    static func delete(id: String) async throws {
+        guard let token = await AuthManager.shared.token else {
+            throw APIError.unauthorized
+        }
+
+        guard let url = URL(string: "\(baseURL)/\(id)") else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard http.statusCode == 200 else { throw APIError.httpError(http.statusCode) }
     }
 }
 
-extension AddressAPI {
-    /// Définit l'adresse par défaut. Retourne l'ID (pour reselectionner).
-    static func makeDefault(id: Int, companyId: Int?) async throws -> Int {
-        guard let token = await AuthManager.shared.token else { throw AddressAPIError.noToken }
+// MARK: - Erreurs API
+enum APIError: Error, LocalizedError {
+    case unauthorized
+    case invalidURL
+    case invalidResponse
+    case httpError(Int)
+    case decodingError
 
-        var url = base.appendingPathComponent("addresses/\(id)/default")
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        var body: [String: Any] = [:]
-        if let companyId { body["companyId"] = companyId }
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse else {
-            throw AddressAPIError.badResponse("Pas de réponse HTTP")
-        }
-        guard (200...299).contains(http.statusCode) else {
-            let s = String(data: data, encoding: .utf8) ?? "Erreur \(http.statusCode)"
-            throw AddressAPIError.badResponse(s)
-        }
-
-        struct Resp: Decodable { let id: Int }
-        return (try? JSONDecoder().decode(Resp.self, from: data).id) ?? id
-    }
-
-    /// Supprime une adresse
-    static func delete(id: Int) async throws {
-        guard let token = await AuthManager.shared.token else { throw AddressAPIError.noToken }
-
-        var req = URLRequest(url: base.appendingPathComponent("addresses/\(id)"))
-        req.httpMethod = "DELETE"
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (_, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw AddressAPIError.badResponse("Suppression impossible")
+    var errorDescription: String? {
+        switch self {
+        case .unauthorized: return "Non autorisé. Veuillez vous reconnecter."
+        case .invalidURL: return "URL invalide."
+        case .invalidResponse: return "Réponse invalide du serveur."
+        case .httpError(let code): return "Erreur HTTP \(code)"
+        case .decodingError: return "Erreur de décodage des données."
         }
     }
 }
+

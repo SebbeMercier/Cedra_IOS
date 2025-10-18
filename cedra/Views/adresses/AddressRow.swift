@@ -2,20 +2,31 @@
 //  AddressRow.swift
 //  cedra
 //
-//  Created by Sebbe Mercier on 20/08/2025.
+//  Created by Sebbe Mercier on 02/10/2025.
 //
 
 import SwiftUI
 
 struct AddressRow: View {
     let address: Address
-    @Binding var selectedAddressId: Int?
+    @Binding var selectedAddressId: String?
 
     private var isSelected: Bool { selectedAddressId == address.id }
 
-    /// Concatène joliment l’adresse (remplace `address.fullDescription`)
     private var fullDescription: String {
         "\(address.street)\n\(address.postalCode) \(address.city), \(address.country)"
+    }
+
+    private var label: String? {
+        if address.type == .billing {
+            return "Adresse de facturation"
+        } else if address.type == .company {
+            return "Adresse professionnelle"
+        } else if address.type == .user {
+            return "Adresse personnelle"
+        } else {
+            return nil
+        }
     }
 
     var body: some View {
@@ -26,19 +37,16 @@ struct AddressRow: View {
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.leading)
 
+                // ✅ Etiquette "Par défaut"
                 if (address.isDefault ?? false) {
                     Text("Par défaut")
                         .font(.caption)
                         .foregroundColor(.blue)
                 }
 
-                // Étiquettes utiles
-                if address.id < 0 {
-                    Text("Adresse de facturation")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                } else if (address.companyId ?? 0) > 0 {
-                    Text("Société (pour moi)")
+                // ✅ Etiquette du type d’adresse
+                if let label = label {
+                    Text(label)
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -46,13 +54,46 @@ struct AddressRow: View {
 
             Spacer()
 
-            // Indicateur de sélection (pas besoin de `Radio`)
+            // ✅ Indicateur de sélection
             Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
                 .font(.title3)
                 .foregroundColor(isSelected ? .blue : .secondary)
         }
         .contentShape(Rectangle())
-        .onTapGesture { selectedAddressId = address.id }
+        .onTapGesture {
+            selectedAddressId = address.id
+        }
         .padding(.vertical, 6)
+        .swipeActions {
+            // ✅ Pas d’action pour les adresses de facturation
+            if address.type != .billing {
+                Button("Par défaut") {
+                    Task {
+                        do {
+                            try await AddressAPI.makeDefault(id: address.id)
+                            await MainActor.run {
+                                selectedAddressId = address.id
+                            }
+                        } catch {
+                            print("❌ Impossible de définir par défaut:", error)
+                        }
+                    }
+                }
+                .tint(.blue)
+
+                Button(role: .destructive) {
+                    Task {
+                        do {
+                            try await AddressAPI.delete(id: address.id)
+                        } catch {
+                            print("❌ Suppression impossible:", error)
+                        }
+                    }
+                } label: {
+                    Label("Supprimer", systemImage: "trash")
+                }
+            }
+        }
     }
 }
+

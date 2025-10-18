@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 @main
 struct cedraApp: App {
@@ -28,7 +29,6 @@ struct cedraApp: App {
                     }
                 }
             }
-            // ✅ injection des 2 environmentObject
             .environmentObject(auth)
             .environmentObject(cartManager)
         }

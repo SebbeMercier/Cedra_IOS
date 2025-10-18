@@ -16,7 +16,7 @@ struct MyAccount: View {
                     helpSection
 
                     // Espace admin Cedra
-                    if auth.currentUser?.isAdmin == true {
+                    if auth.currentUser?.role == "admin" {
                         adminSection
                     }
 
@@ -24,6 +24,7 @@ struct MyAccount: View {
                     if auth.currentUser?.isCompanyAdmin == true {
                         companyAdminSection(companyName: auth.currentUser?.companyName ?? "Mon entreprise")
                     }
+
                     Spacer()
                 }
                 .padding(.top)
@@ -40,10 +41,29 @@ struct MyAccount: View {
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Bonjour, \(auth.currentUser?.name ?? "Utilisateur")")
+            // Nom de l'utilisateur
+            Text("Bonjour, \(auth.currentUser?.name.isEmpty == false ? auth.currentUser!.name : "Utilisateur")")
                 .font(.title2)
                 .bold()
                 .foregroundColor(.black)
+
+            // Si admin entreprise, afficher le nom de l'entreprise
+            if auth.currentUser?.isCompanyAdmin == true,
+               let companyName = auth.currentUser?.companyName,
+               !companyName.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "building.2.fill")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    Text(companyName)
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(6)
+            }
 
             Text("Gérez votre compte et vos paramètres")
                 .font(.subheadline)
@@ -129,4 +149,3 @@ struct MyAccount: View {
         isLoggedOut = true
     }
 }
-

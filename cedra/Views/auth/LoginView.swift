@@ -1,14 +1,10 @@
-//
-//  LoginView.swift
-//  Cedra
-//
-//  Created by Sebbe Mercier on 14/08/2025.
-//
-
 import SwiftUI
 import AuthenticationServices
 
+// MARK: - LoginView
 struct LoginView: View {
+    @EnvironmentObject var auth: AuthManager
+
     @State private var email = ""
     @State private var password = ""
     @State private var errorMessage: String?
@@ -17,7 +13,7 @@ struct LoginView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-
+                // Logo
                 HStack {
                     Image("logo")
                         .resizable()
@@ -31,7 +27,7 @@ struct LoginView: View {
 
                 Spacer(minLength: 40)
 
-                // ✅ Titre
+                // Titre
                 Text("Connexion")
                     .font(.largeTitle)
                     .bold()
@@ -39,10 +35,11 @@ struct LoginView: View {
                     .padding(.bottom, 30)
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                // ✅ Email
+                // Champ email
                 TextField("Adresse e-mail", text: $email)
                     .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
                     .foregroundColor(.black)
                     .padding()
                     .frame(minHeight: 55)
@@ -54,8 +51,7 @@ struct LoginView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 20)
 
-                
-                // ✅ Mot de passe
+                // Champ mot de passe
                 SecureField("Mot de passe", text: $password)
                     .foregroundColor(.black)
                     .padding()
@@ -67,8 +63,7 @@ struct LoginView: View {
                     )
                     .padding(.horizontal)
 
-
-                // ✅ Message d'erreur
+                // Message d’erreur
                 if let error = errorMessage {
                     Text(error)
                         .foregroundColor(.red)
@@ -76,7 +71,7 @@ struct LoginView: View {
                         .padding(.horizontal)
                 }
 
-                // ✅ Bouton Se connecter
+                // Bouton connexion
                 Button(action: login) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 8)
@@ -95,7 +90,7 @@ struct LoginView: View {
                 .padding(.top, 40)
                 .padding(.horizontal)
 
-                
+                // Lien inscription
                 NavigationLink(destination: RegisterView()) {
                     Text("Créer un compte")
                         .foregroundColor(.blue)
@@ -107,58 +102,12 @@ struct LoginView: View {
 
                 Divider().padding(.vertical, 30)
 
-                // ✅ Apple
+                // Apple Sign In (placeholder)
                 SignInWithAppleButton(.signIn) { _ in
-                    AppleSignInManager.shared.startSignInWithAppleFlow()
+                    // ⚡ Plus tard: AppleSignInManager.shared.startSignInWithAppleFlow()
                 } onCompletion: { _ in }
                 .frame(height: 50)
                 .cornerRadius(8)
-                .padding(.horizontal)
-
-                // ✅ Facebook
-                Button(action: {
-                    FacebookSignInManager.shared.signIn()
-                }) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.blue)
-                            .frame(height: 50)
-                        HStack(spacing: 10) {
-                            Image("facebook_logo")
-                                .resizable()
-                                .frame(width: 20, height: 20)
-                            Text("Continuer avec Facebook")
-                                .foregroundColor(.white)
-                                .bold()
-                        }
-                    }
-                }
-                .padding(.top, 10)
-                .padding(.horizontal)
-
-                Button(action: {
-                    GoogleSignInManager.shared.signIn()
-                }) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.white)
-                            .frame(height: 50)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.gray.opacity(0.5), lineWidth: 1.5)
-                            )
-                            .shadow(color: .gray.opacity(0.2), radius: 2)
-                        HStack(spacing: 10) {
-                            Image("google_logo")
-                                .resizable()
-                                .frame(width: 20, height: 20)
-                            Text("Continuer avec Google")
-                                .foregroundColor(.black)
-                                .bold()
-                        }
-                    }
-                }
-                .padding(.top, 10)
                 .padding(.horizontal)
 
                 Spacer()
@@ -170,19 +119,27 @@ struct LoginView: View {
         .navigationBarHidden(true)
     }
 
-    func login() {
+    private func login() {
         errorMessage = nil
         isLoading = true
         AuthService.shared.login(email: email, password: password) { result in
             isLoading = false
             switch result {
             case .success(let res):
-                // ✅ Conversion directe
-                let user = User(from: res.user, token: res.token)
-
+                let user = User(
+                    id: res.userId,
+                    name: res.name,
+                    email: res.email,
+                    token: res.token,
+                    role: res.role,
+                    companyId: res.companyId,
+                    companyName: res.companyName,
+                    isCompanyAdmin: res.isCompanyAdmin
+                )
                 Task { @MainActor in
-                    AuthManager.shared.saveSession(user: user)
+                    auth.saveSession(user: user)
                 }
+
             case .failure(let e):
                 errorMessage = e.localizedDescription
             }
@@ -190,6 +147,8 @@ struct LoginView: View {
     }
 }
 
+// ✅ Preview
 #Preview {
     LoginView()
+        .environmentObject(AuthManager.shared)
 }

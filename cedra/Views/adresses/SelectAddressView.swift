@@ -2,161 +2,188 @@ import SwiftUI
 
 struct SelectAddressView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var authManager = AuthManager.shared
 
     @State private var addresses: [Address] = []
-    @State private var selectedAddressId: Int?
+    @State private var companyBillingAddress: CompanyBillingAddress?
+    @State private var companyAddresses: [Address] = []
+    @State private var selectedAddressId: String?
     @State private var errorMessage: String?
-    @State private var showAddUser = false
-    @State private var showAddCompany = false
-    @State private var company: Company?
+    @State private var showAddAddress = false
+    @State private var showAddressTypeSheet = false
+    @State private var selectedAddressType: AddressType = .user
+    @State private var isLoading = false
+    @State private var navigateToPayment = false
+    @State private var navigateToProView = false
+
+    private var hasCompany: Bool {
+        guard let cid = authManager.currentUser?.companyId else { return false }
+        return !cid.isEmpty
+    }
+
+    private var allAddresses: [Address] {
+        addresses + companyAddresses
+    }
 
     var body: some View {
-        List {
-            // MES ADRESSES
-            Section("Mes adresses") {
-                if personalAddresses.isEmpty {
-                    Text("Aucune adresse personnelle").foregroundColor(.secondary)
-                } else {
-                    ForEach(personalAddresses) { address in
-                        AddressRow(address: address, selectedAddressId: $selectedAddressId)
-                            .padding(.vertical, 6)
-                    }
-                }
-            }
-
-            // ENTREPRISE
-            if let company {
-                Section(company.name) {
-                    // 1) Adresse de facturation de la société (en premier)
-                    if let billing = billingAddress(company) {
-                        AddressRow(address: billing, selectedAddressId: $selectedAddressId)
-                            .padding(.vertical, 6)
-                    } else {
-                        Text("Aucune adresse de facturation pour la société")
-                            .foregroundColor(.secondary)
-                    }
-
-                    // 2) Adresses d’entreprise (partagées ou privées à l’utilisateur)
-                    if companyAddresses.isEmpty {
-                        Text("Aucune adresse d’entreprise")
-                            .foregroundColor(.secondary)
-                    } else {
-                        ForEach(companyAddresses) { address in
-                            AddressRow(address: address, selectedAddressId: $selectedAddressId)
-                                .padding(.vertical, 6)
+        NavigationStack {
+            ZStack {
+                if isLoading {
+                    ProgressView("Chargement des adresses...")
+                        .padding()
+                } else if addresses.isEmpty && companyBillingAddress == nil && companyAddresses.isEmpty {
+                    EmptyStateView(hasCompany: hasCompany) {
+                        if hasCompany {
+                            showAddressTypeSheet = true
+                        } else {
+                            selectedAddressType = .user
+                            showAddAddress = true
                         }
                     }
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
-        .navigationTitle("Choisir une adresse")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button("Fermer") { dismiss() }
-            }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                if company != nil {
-                    Menu("Ajouter") {
-                        Button("Adresse perso") { showAddUser = true }
-                        Button("Adresse entreprise") { showAddCompany = true }
-                    }
                 } else {
-                    Button("Ajouter") { showAddUser = true }
+                    AddressListView(
+                        addresses: addresses,
+                        companyBillingAddress: companyBillingAddress,
+                        companyAddresses: companyAddresses,
+                        selectedAddressId: $selectedAddressId,
+                        hasCompany: hasCompany,
+                        companyName: authManager.currentUser?.companyName ?? "Société"
+                    )
                 }
             }
-        }
-        // Ajout adresse perso
-        .sheet(isPresented: $showAddUser) {
-            NavigationStack {
-                AddAddressView { s, pc, c, co in
-                    Task {
-                        do {
-                            _ = try await AddressAPI.create(
-                                street: s, postalCode: pc, city: c, country: co, type: .user
-                            )
-                            await reload()
-                        } catch {
-                            errorMessage = "Impossible d’ajouter l’adresse."
+            .navigationTitle("Mes adresses")
+
+            // --- Barre d’outils ---
+            .toolbar {
+                ToolbarButtons(
+                    hasCompany: hasCompany,
+                    selectedAddressId: $selectedAddressId,
+                    onAdd: {
+                        if hasCompany {
+                            showAddressTypeSheet = true
+                        } else {
+                            selectedAddressType = .user
+                            showAddAddress = true
+                        }
+                    },
+                    onContinue: {
+                        // 🔹 Cas particulier : adresse de facturation
+                        if selectedAddressId == "company-billing" {
+                            navigateToProView = true
+                            return
+                        }
+
+                        // 🔹 Sinon, on cherche dans les vraies adresses
+                        guard let addr = allAddresses.first(where: { $0.id == selectedAddressId }) else { return }
+                        if addr.type?.rawValue == "company" {
+                            navigateToProView = true
+                        } else {
+                            navigateToPayment = true
                         }
                     }
-                }
+                )
             }
-        }
-        // Ajout adresse entreprise (privée à l’utilisateur)
-        .sheet(isPresented: $showAddCompany) {
-            NavigationStack {
-                AddAddressView { s, pc, c, co in
-                    Task {
-                        do {
-                            if let compId = company?.id {
+
+            // --- Navigation ---
+            .navigationDestination(isPresented: $navigateToPayment) {
+                PaymentView(selectedAddressId: selectedAddressId ?? "")
+            }
+            .navigationDestination(isPresented: $navigateToProView) {
+                ProfessionalView(selectedAddressId: selectedAddressId ?? "")
+            }
+
+            // --- Ajout d’adresse ---
+            .sheet(isPresented: $showAddAddress) {
+                NavigationStack {
+                    AddAddressView(addressType: selectedAddressType) { street, postal, city, country in
+                        Task {
+                            do {
                                 _ = try await AddressAPI.create(
-                                    street: s, postalCode: pc, city: c, country: co,
-                                    type: .company, companyId: compId, privateCompany: true
+                                    street: street,
+                                    postalCode: postal,
+                                    city: city,
+                                    country: country,
+                                    type: selectedAddressType,
+                                    companyId: selectedAddressType == .company ? authManager.currentUser?.companyId : nil
                                 )
                                 await reload()
+                                await MainActor.run { showAddAddress = false }
+                            } catch {
+                                await MainActor.run {
+                                    errorMessage = "Impossible d'ajouter l'adresse."
+                                }
                             }
-                        } catch {
-                            errorMessage = "Impossible d’ajouter l’adresse d’entreprise."
                         }
                     }
                 }
             }
+
+            // --- Choix du type d’adresse ---
+            .confirmationDialog("Type d'adresse", isPresented: $showAddressTypeSheet) {
+                Button("Adresse personnelle") {
+                    selectedAddressType = .user
+                    showAddAddress = true
+                }
+                Button("Adresse professionnelle") {
+                    selectedAddressType = .company
+                    showAddAddress = true
+                }
+                Button("Annuler", role: .cancel) { }
+            } message: {
+                Text("Quel type d'adresse souhaitez-vous ajouter ?")
+            }
+
+            // --- Tâche asynchrone au chargement ---
+            .task { await reload() }
+
+            // --- Alerte d’erreur ---
+            .alert("Erreur", isPresented: .constant(errorMessage != nil)) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
+            }
         }
-        .task { await reload() }
-        .alert("Erreur", isPresented: .constant(errorMessage != nil)) {
-            Button("OK") { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
-        }
     }
 
-    // MARK: - Helpers
-
-    private var personalAddresses: [Address] {
-        addresses.filter { ($0.companyId ?? 0) == 0 }
-    }
-
-    private var companyAddresses: [Address] {
-        addresses.filter { ($0.companyId ?? 0) > 0 } // inclut privées & partagées
-    }
-
-    /// On fabrique une adresse "virtuelle" pour afficher la facturation en tête
-    private func billingAddress(_ c: Company) -> Address? {
-        guard
-            let street = c.billingStreet, !street.isEmpty,
-            let pc = c.billingPostalCode, !pc.isEmpty,
-            let city = c.billingCity, !city.isEmpty,
-            let country = c.billingCountry, !country.isEmpty
-        else { return nil }
-
-        return Address(
-            id: -c.id, // id négatif = virtuel
-            street: street,
-            postalCode: pc,
-            city: city,
-            country: country,
-            isDefault: false,
-            userId: nil,
-            companyId: c.id,
-            type: "company"
-        )
-    }
-
+    // MARK: - Chargement
     @MainActor
     private func reload() async {
-        do {
-            async let a1 = AddressAPI.listMine()
-            async let c1 = CompanyAPI.me()
-            let (list, comp) = try await (a1, c1)
-            self.addresses = list
-            self.company = comp
+        isLoading = true
+        defer { isLoading = false }
 
-            if let first = list.first(where: { ($0.isDefault ?? false) }) {
-                selectedAddressId = first.id
-            }
+        var loadedAddresses: [Address] = []
+        var loadedCompany: Company? = nil
+
+        do {
+            loadedAddresses = try await AddressAPI.listMine()
         } catch {
-            print("Erreur chargement adresses/company:", error)
+            loadedAddresses = []
         }
+
+        if hasCompany {
+            do { loadedCompany = try await CompanyAPI.me() } catch { }
+        }
+
+        self.addresses = loadedAddresses.filter { $0.type?.rawValue == "user" }
+        self.companyAddresses = loadedAddresses.filter { $0.type?.rawValue == "company" && $0.companyId != nil }
+        self.selectedAddressId = loadedAddresses.first(where: { $0.isDefault ?? false })?.id
+
+        if let company = loadedCompany,
+           let s = company.billingStreet,
+           let pc = company.billingPostalCode,
+           let c = company.billingCity,
+           let co = company.billingCountry,
+           !s.isEmpty, !pc.isEmpty, !c.isEmpty, !co.isEmpty {
+            self.companyBillingAddress = CompanyBillingAddress(
+                street: s,
+                postalCode: pc,
+                city: c,
+                country: co
+            )
+        } else {
+            self.companyBillingAddress = nil
+        }
+
+        self.errorMessage = nil
     }
 }

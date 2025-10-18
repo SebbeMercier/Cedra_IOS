@@ -54,8 +54,8 @@ struct UsersCompanyDashboard: View {
                         user: user,
                         isSaving: savingUserIds.contains(user.id),
                         onChange: { updated in Task { await saveUser(updated) } },
-                        onSuspendToggle: { confirmSuspend = user },
-                        onResetPassword: { confirmReset = user }
+                        onSuspendToggle: { _ in confirmSuspend = user },
+                        onResetPassword: { _ in confirmReset = user }
                     )
                 }
                 if users.isEmpty && !isLoading {
@@ -154,4 +154,3 @@ struct UsersCompanyDashboard: View {
         UsersCompanyDashboard(companyName: "Eldocam")
     }
 }
-

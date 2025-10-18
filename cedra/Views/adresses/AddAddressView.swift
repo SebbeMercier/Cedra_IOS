@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct AddAddressView: View {
+    let addressType: AddressType
     var onSave: (_ street: String, _ postalCode: String, _ city: String, _ country: String) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -18,10 +19,19 @@ struct AddAddressView: View {
 
     var body: some View {
         Form {
-            TextField("Rue", text: $street)
-            TextField("Code postal", text: $postalCode)
-            TextField("Ville", text: $city)
-            TextField("Pays", text: $country)
+            Section {
+                Text(addressType == .user ? "📍 Adresse personnelle" : "🏢 Adresse professionnelle")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            
+            Section("Informations") {
+                TextField("Rue", text: $street)
+                TextField("Code postal", text: $postalCode)
+                    .keyboardType(.numberPad)
+                TextField("Ville", text: $city)
+                TextField("Pays", text: $country)
+            }
         }
         .navigationTitle("Nouvelle adresse")
         .toolbar {

@@ -1,10 +1,3 @@
-//
-//  ProductDetailView.swift
-//  Cedra
-//
-//  Created by Sebbe Mercier on 17/08/2025.
-//
-
 import SwiftUI
 
 struct ProductDetailView: View {
@@ -12,33 +5,44 @@ struct ProductDetailView: View {
 
     @EnvironmentObject var cartManager: CartManager
     @State private var showAddedAlert = false
-    @State private var quantity: Int = 1   // 👈 quantité choisie
+    @State private var quantity: Int = 1
+    @State private var fullProduct: Product? = nil
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-
-                // Image du produit
-                if let imageUrl = URL(string: product.image_url ?? "") {
-                    AsyncImage(url: imageUrl) { image in
-                        image.resizable()
-                            .aspectRatio(contentMode: .fit)
-                    } placeholder: {
-                        Color.gray.opacity(0.2)
+                if let images = fullProduct?.image_urls ?? product.image_urls, !images.isEmpty {
+                    TabView {
+                        ForEach(images, id: \.self) { urlString in
+                            if let url = URL(string: urlString) {
+                                AsyncImage(url: url) { image in
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(maxWidth: .infinity)
+                                } placeholder: {
+                                    Color.gray.opacity(0.2)
+                                }
+                            }
+                        }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: 250)
+                    .frame(height: 250)
+                    .tabViewStyle(PageTabViewStyle())
+                } else {
+                    Image(systemName: "photo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .foregroundColor(.gray)
+                        .frame(maxWidth: .infinity, maxHeight: 250)
                 }
-
-                // Nom & prix
-                Text(product.name)
+                Text(fullProduct?.name ?? product.name)
                     .font(.title)
                     .bold()
 
-                Text("\(product.price, specifier: "%.2f") €")
+                Text("\(fullProduct?.price ?? product.price, specifier: "%.2f") €")
                     .font(.title2)
                     .foregroundColor(.red)
 
-                // 👇 Sélecteur de quantité
                 HStack {
                     Text("Quantité:")
                         .font(.headline)
@@ -51,12 +55,14 @@ struct ProductDetailView: View {
                 }
                 .padding(.top)
 
-                // 👇 Ajouter au panier
                 Button(action: {
-                    for _ in 0..<quantity {
-                        cartManager.add(product: product)
+                    Task {
+                        for _ in 0..<quantity {
+                            await cartManager.add(product: fullProduct ?? product)
+                        }
+                        await cartManager.fetchCart()
+                        showAddedAlert = true
                     }
-                    showAddedAlert = true
                 }) {
                     Text("Ajouter au panier")
                         .font(.headline)
@@ -67,8 +73,6 @@ struct ProductDetailView: View {
                         .cornerRadius(10)
                 }
                 .padding(.top)
-
-                Spacer()
             }
             .padding()
         }
@@ -77,5 +81,21 @@ struct ProductDetailView: View {
         .alert("✅ \(quantity) ajouté(s) au panier", isPresented: $showAddedAlert) {
             Button("OK", role: .cancel) {}
         }
+        .task {
+            await loadFullProduct()
+        }
+    }
+
+    private func loadFullProduct() async {
+        guard let url = URL(string: "http://192.168.1.200:8080/api/products/\(product.id)/full") else { return }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let decoded = try? JSONDecoder().decode(Product.self, from: data) {
+                fullProduct = decoded
+            }
+        } catch {
+            print("⚠️ Erreur chargement produit complet : \(error)")
+        }
     }
 }
+

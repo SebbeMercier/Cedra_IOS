@@ -8,11 +8,12 @@
 import SwiftUI
 
 struct InviteSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var email = ""
-    @State private var role: CompanyUser.Role = .employee
-
     var onInvite: (_ email: String, _ role: CompanyUser.Role) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var email: String = ""
+    @State private var role: CompanyUser.Role = .employee
+    @State private var error: String?
 
     var body: some View {
         NavigationStack {
@@ -22,30 +23,39 @@ struct InviteSheet: View {
                         .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
                         .autocorrectionDisabled()
+
                     Picker("Rôle", selection: $role) {
                         ForEach(CompanyUser.Role.allCases) { r in
                             Text(r.label).tag(r)
                         }
                     }
                 }
+
+                if let error {
+                    Text(error)
+                        .foregroundColor(.red)
+                }
             }
-            .navigationTitle("Inviter un utilisateur")
+            .navigationTitle("Inviter")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Annuler") { dismiss() }
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Envoyer") {
-                        onInvite(email, role)
-                        dismiss()
-                    }
-                    .disabled(!isValidEmail(email))
+                    Button("Envoyer") { submit() }
                 }
             }
         }
     }
 
-    private func isValidEmail(_ s: String) -> Bool {
-        let s = s.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard s.contains("@"), s.contains(".") else { return false }
-        return s.count >= 6
+    private func submit() {
+        let mail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard mail.contains("@"), mail.contains(".") else {
+            error = "Adresse e-mail invalide."
+            return
+        }
+        error = nil
+        onInvite(mail, role)
+        dismiss()
     }
 }

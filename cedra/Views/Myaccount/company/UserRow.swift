@@ -8,79 +8,96 @@
 import SwiftUI
 
 struct UserRow: View {
-    @State var user: CompanyUser
-    var isSaving: Bool
-    var onChange: (CompanyUser) -> Void
-    var onSuspendToggle: () -> Void
-    var onResetPassword: () -> Void
+    // Données d’entrée
+    let user: CompanyUser
+    let isSaving: Bool
+
+    // Callbacks
+    var onChange: (CompanyUser) -> Void          // appelé quand on appuie sur "Enregistrer"
+    var onSuspendToggle: (CompanyUser) -> Void   // appelé quand on toggle "Suspendu"
+    var onResetPassword: (CompanyUser) -> Void   // bouton reset
+
+    // État local éditable
+    @State private var draft: CompanyUser
+
+    init(
+        user: CompanyUser,
+        isSaving: Bool,
+        onChange: @escaping (CompanyUser) -> Void,
+        onSuspendToggle: @escaping (CompanyUser) -> Void,
+        onResetPassword: @escaping (CompanyUser) -> Void
+    ) {
+        self.user = user
+        self.isSaving = isSaving
+        self.onChange = onChange
+        self.onSuspendToggle = onSuspendToggle
+        self.onResetPassword = onResetPassword
+        _draft = State(initialValue: user)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Avatar(name: user.name)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(user.name).font(.headline)
-                    Text(user.email).foregroundColor(.secondary).font(.subheadline)
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            // En-tête: nom + email
+            HStack(alignment: .firstTextBaseline) {
+                Text(draft.name.isEmpty ? "—" : draft.name)
+                    .font(.headline)
                 Spacer()
-                if isSaving { ProgressView() }
+                if isSaving {
+                    ProgressView().scaleEffect(0.8)
+                }
             }
 
-            // Rôle
-            HStack {
-                Text("Rôle").font(.subheadline).foregroundColor(.secondary)
-                Spacer()
-                Picker("", selection: Binding(
-                    get: { user.role },
-                    set: { user.role = $0; onChange(user) }
-                )) {
-                    ForEach(CompanyUser.Role.allCases) { r in Text(r.label).tag(r) }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 260)
-            }
+            Text(draft.email)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .textSelection(.enabled)
 
-            // Permissions
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Permissions").font(.subheadline).foregroundColor(.secondary)
-                HStack {
-                    Toggle("Commander", isOn: Binding(
-                        get: { user.permissions.canOrder },
-                        set: { user.permissions.canOrder = $0; onChange(user) }
-                    ))
-                    Toggle("Voir les prix", isOn: Binding(
-                        get: { user.permissions.canViewPrices },
-                        set: { user.permissions.canViewPrices = $0; onChange(user) }
-                    ))
+            // Rôle + suspension
+            HStack(spacing: 16) {
+                Picker("Rôle", selection: $draft.role) {
+                    ForEach(CompanyUser.Role.allCases) { r in
+                        Text(r.label).tag(r)
+                    }
                 }
-                HStack {
-                    Toggle("Gérer stock", isOn: Binding(
-                        get: { user.permissions.canManageInventory },
-                        set: { user.permissions.canManageInventory = $0; onChange(user) }
-                    ))
-                    Toggle("Inviter", isOn: Binding(
-                        get: { user.permissions.canInvite },
-                        set: { user.permissions.canInvite = $0; onChange(user) }
-                    ))
-                }
+                .pickerStyle(.menu)
+
+                Toggle("Suspendu", isOn: Binding<Bool>(
+                    get: { draft.isSuspended },
+                    set: { newVal in
+                        draft.isSuspended = newVal
+                        // on notifie dès le toggle (comportement courant)
+                        onSuspendToggle(CompanyUser(
+                            id: draft.id,
+                            name: draft.name,
+                            email: draft.email,
+                            role: draft.role,
+                            isSuspended: draft.isSuspended
+                        ))
+                    }
+                ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+                Text(draft.isSuspended ? "Suspendu" : "Actif")
+                    .font(.caption)
+                    .foregroundColor(draft.isSuspended ? .red : .green)
             }
 
             // Actions
             HStack {
-                Button(role: user.isSuspended ? .none : .destructive) {
-                    onSuspendToggle()
-                } label: {
-                    Label(user.isSuspended ? "Réactiver" : "Suspendre", systemImage: user.isSuspended ? "play.circle.fill" : "pause.circle.fill")
+                Button("Réinitialiser le mot de passe") {
+                    onResetPassword(draft)
                 }
-
-                Button { onResetPassword() } label: {
-                    Label("Réinitialiser mot de passe", systemImage: "key.fill")
-                }
+                .buttonStyle(.borderless)
 
                 Spacer()
+
+                Button("Enregistrer") {
+                    onChange(draft)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(draft == user) // rien n'a changé
             }
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.secondarySystemBackground)))
+        .padding(.vertical, 8)
     }
 }

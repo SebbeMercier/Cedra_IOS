@@ -9,7 +9,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var selectedTab = 0   // ✅ 0 = Accueil, 2 = Panier, 3 = Profil
+    @State private var selectedTab = 0
     @State private var showLogo = true
     @State private var scale: CGFloat = 1.0
     @State private var opacity: Double = 1.0
@@ -17,8 +17,6 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-
-                // Contenu principal avec crossfade quand selectedTab change
                 ZStack {
                     switch selectedTab {
                     case 0:
