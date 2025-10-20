@@ -15,7 +15,8 @@ struct SelectAddressView: View {
     @State private var isLoading = false
     @State private var navigateToPayment = false
     @State private var navigateToProView = false
-
+    @Binding var selectedTab: Int
+    
     private var hasCompany: Bool {
         guard let cid = authManager.currentUser?.companyId else { return false }
         return !cid.isEmpty
@@ -86,10 +87,10 @@ struct SelectAddressView: View {
 
             // --- Navigation ---
             .navigationDestination(isPresented: $navigateToPayment) {
-                PaymentView(selectedAddressId: selectedAddressId ?? "")
+                PaymentView(selectedTab: $selectedTab)
             }
             .navigationDestination(isPresented: $navigateToProView) {
-                ProfessionalView(selectedAddressId: selectedAddressId ?? "")
+                ProfessionalView(selectedAddressId: "")
             }
 
             // --- Ajout d’adresse ---

@@ -7,6 +7,7 @@ struct CartView: View {
     @State private var isDeleting = false
     @State private var showDeleteConfirmation = false
     @State private var productToDelete: String?
+    @Binding var selectedTab: Int
     
     var body: some View {
         NavigationStack {
@@ -97,7 +98,7 @@ struct CartView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 10)
                     
-                    NavigationLink(destination: SelectAddressView(), isActive: $showCommandeView) {
+                    NavigationLink(destination: SelectAddressView(selectedTab: $selectedTab), isActive: $showCommandeView) {
                         EmptyView()
                     }
                 }

@@ -323,6 +323,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = cedra/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cedra;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.shopping";
 				INFOPLIST_KEY_NSUserTrackingUsageDescription = "Cette app utilise l’identifiant publicitaire pour vous proposer une meilleure expérience.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -361,6 +362,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = cedra/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cedra;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.shopping";
 				INFOPLIST_KEY_NSUserTrackingUsageDescription = "Cette app utilise l’identifiant publicitaire pour vous proposer une meilleure expérience.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

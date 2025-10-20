@@ -132,5 +132,25 @@ final class CartManager: ObservableObject {
             print("❌ Erreur décodage panier : \(error.localizedDescription)")
         }
     }
+    
+    func clearCart() async {
+        guard let token else { return }
+        guard let url = URL(string: "\(baseURL)/api/cart/clear") else { return }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        req.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: req)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return }
+            await MainActor.run {
+                self.items.removeAll()
+            }
+            print("🧹 Panier vidé après paiement réussi")
+        } catch {
+            print("❌ Erreur clearCart : \(error.localizedDescription)")
+        }
+    }
 }
 

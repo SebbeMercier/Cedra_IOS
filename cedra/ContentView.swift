@@ -13,7 +13,7 @@ struct ContentView: View {
     @State private var showLogo = true
     @State private var scale: CGFloat = 1.0
     @State private var opacity: Double = 1.0
-
+    
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
@@ -22,7 +22,7 @@ struct ContentView: View {
                     case 0:
                         home(selectedTab: $selectedTab) 
                     case 2:
-                        CartView()
+                        CartView(selectedTab: $selectedTab)
                             .navigationBarBackButtonHidden(true)
                             .navigationBarHidden(true)
                     case 3:

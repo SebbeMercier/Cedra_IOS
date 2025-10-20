@@ -1,18 +1,18 @@
 //
-//  myadresses.swift
-//  Cedra
+//  myaddresse.swift
+//  cedra
 //
-//  Created by Sebbe Mercier on 14/08/2025.
+//  Created by Sebbe Mercier on 20/10/2025.
 //
 
 import SwiftUI
 
-struct myadresses: View {
+struct myaddresses: View {
     var body: some View {
         Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
     }
 }
 
 #Preview {
-    myadresses()
+    myaddresses()
 }

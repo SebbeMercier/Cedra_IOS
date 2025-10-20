@@ -94,7 +94,7 @@ struct MyAccount: View {
     }
 
     private var addressesSection: some View {
-        NavigationLink(destination: myadresses()) {
+        NavigationLink(destination: myaddresses()) {
             accountSection(title: "Mes adresses", icon: "mappin.and.ellipse")
         }
     }
