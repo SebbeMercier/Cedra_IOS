@@ -51,7 +51,7 @@ struct PaymentView: View {
         }
         // 🔴 Navigation vers la page d’annulation/erreur
         .onChange(of: paymentManager.paymentError) { error in
-            if let error = error, error.contains("annulé") || error.contains("échoué") {
+            if error == "Paiement annulé." {
                 showCancelled = true
             }
         }
@@ -59,9 +59,11 @@ struct PaymentView: View {
         .navigationDestination(isPresented: $showSuccess) {
             PaymentSuccessView(selectedTab: $selectedTab)
         }
+        
         .navigationDestination(isPresented: $showCancelled) {
             PaymentCancelledView(selectedTab: $selectedTab)
         }
+        
         // ⚠️ Alerte d’erreur générique
         .alert("Erreur", isPresented: Binding(
             get: { paymentManager.paymentError != nil && !showCancelled },
@@ -73,4 +75,3 @@ struct PaymentView: View {
         }
     }
 }
-

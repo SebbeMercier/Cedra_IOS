@@ -88,19 +88,19 @@ struct MyAccount: View {
     }
 
     private var ordersSection: some View {
-        NavigationLink(destination: myorders()) {
+        NavigationLink(destination: MyOrdersView()) {
             accountSection(title: "Mes commandes", icon: "cart.fill")
         }
     }
 
     private var addressesSection: some View {
-        NavigationLink(destination: myaddresses()) {
+        NavigationLink(destination: MyAddressesView()) {
             accountSection(title: "Mes adresses", icon: "mappin.and.ellipse")
         }
     }
 
     private var settingsSection: some View {
-        NavigationLink(destination: mysettings()) {
+        NavigationLink(destination: MySettingsView()) {
             accountSection(title: "Paramètres du compte", icon: "gearshape.fill")
         }
     }

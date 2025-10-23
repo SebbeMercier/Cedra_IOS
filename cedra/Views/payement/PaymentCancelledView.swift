@@ -17,19 +17,23 @@ struct PaymentCancelledView: View {
             Image(systemName: "xmark.circle.fill")
                 .font(.system(size: 80))
                 .foregroundColor(.red)
-                .symbolEffect(.bounce, value: true)
+                .symbolEffect(.pulse, value: true)
 
-            Text("Paiement annulé ❌")
+            Text("Paiement annulé")
                 .font(.title2)
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
-            Text("Votre paiement n’a pas été finalisé.\nRedirection dans \(timeRemaining)s.")
+            Text("Votre paiement n’a pas été finalisé.\nVous pouvez réessayer plus tard ou modifier votre panier.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.gray)
                 .padding(.horizontal)
+
+            Text("Retour automatique à l’accueil dans \(timeRemaining)s.")
+                .foregroundColor(.secondary)
+                .font(.footnote)
 
             Button(action: goHome) {
                 Text("Retour à l’accueil")
@@ -45,6 +49,7 @@ struct PaymentCancelledView: View {
         .padding()
         .navigationBarBackButtonHidden(true)
         .onAppear {
+            // ⏱️ Timer de redirection automatique
             Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
                 if timeRemaining > 1 {
                     timeRemaining -= 1

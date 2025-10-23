@@ -1,5 +1,5 @@
 //
-//  Product.swift .swift
+//  Product.swift
 //  Cedra
 //
 //  Created by Sebbe Mercier on 14/08/2025.

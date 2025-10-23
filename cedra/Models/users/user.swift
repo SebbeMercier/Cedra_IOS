@@ -63,14 +63,3 @@ struct RegisterResponse: Decodable {
     let role: String
     let isCompanyAdmin: Bool
 }
-
-struct LoginResponse: Codable {
-    let userId: String
-    let name: String
-    let email: String
-    let token: String
-    let role: String
-    let isCompanyAdmin: Bool
-    let companyId: String?
-    let companyName: String?
-}

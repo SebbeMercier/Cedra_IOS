@@ -9,8 +9,9 @@ import Foundation
 
 // MARK: - Wrappers tolérants
 @propertyWrapper
-struct StringOrInt: Decodable {
+struct StringOrInt: Codable {
     var wrappedValue: String
+
     init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()
         if let s = try? c.decode(String.self) { wrappedValue = s; return }
@@ -18,21 +19,33 @@ struct StringOrInt: Decodable {
         throw DecodingError.typeMismatch(String.self,
             .init(codingPath: decoder.codingPath, debugDescription: "Expected String or Int"))
     }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(wrappedValue)
+    }
 }
 
 @propertyWrapper
-struct StringOrIntOptional: Decodable {
+struct StringOrIntOptional: Codable {
     var wrappedValue: String?
+
     init(from decoder: Decoder) throws {
         guard let c = try? decoder.singleValueContainer() else { wrappedValue = nil; return }
         if let s = try? c.decode(String.self) { wrappedValue = s; return }
         if let i = try? c.decode(Int.self)    { wrappedValue = String(i); return }
         wrappedValue = nil
     }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(wrappedValue)
+    }
 }
 
+
 // MARK: - Modèles de réponse
-struct APIUser: Decodable {
+struct APIUser: Codable {
     @StringOrInt var id: String
     let name: String?
     let email: String
@@ -42,7 +55,18 @@ struct APIUser: Decodable {
     let isCompanyAdmin: Bool?
 }
 
-/// ✅ Corrigé pour coller au backend (`error` et pas `message`)
+struct LoginResponse: Decodable {
+    let token: String
+    let user: APIUser?
+    let userId: String
+    let name: String
+    let email: String
+    let role: String
+    let isCompanyAdmin: Bool
+    let companyId: String?
+    let companyName: String?
+}
+
 struct MessageResponse: Decodable {
     let error: String
 }
@@ -52,10 +76,45 @@ struct EmptyResponse: Decodable {}
 // MARK: - Service d'authentification
 final class AuthService {
     static let shared = AuthService()
-    private init() {}
+    private init() {
+        // ✅ Charge le token au démarrage si présent
+        self.token = UserDefaults.standard.string(forKey: "auth_token")
+        if let userData = UserDefaults.standard.data(forKey: "current_user"),
+           let user = try? JSONDecoder().decode(APIUser.self, from: userData) {
+            self.currentUser = user
+        }
+    }
 
     // 👉 Ton backend Go tourne sur 8080
     private let baseURL = "http://192.168.1.200:8080/api/auth"
+
+    // ✅ Token JWT stocké en mémoire et dans UserDefaults
+    var token: String? {
+        didSet {
+            if let token = token {
+                UserDefaults.standard.set(token, forKey: "auth_token")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "auth_token")
+            }
+        }
+    }
+    
+    // ✅ Utilisateur courant
+    var currentUser: APIUser? {
+        didSet {
+            if let user = currentUser,
+               let userData = try? JSONEncoder().encode(user) {
+                UserDefaults.standard.set(userData, forKey: "current_user")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "current_user")
+            }
+        }
+    }
+    
+    // ✅ Vérifie si l'utilisateur est connecté
+    var isAuthenticated: Bool {
+        return token != nil
+    }
 
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.default
@@ -74,16 +133,34 @@ final class AuthService {
     func login(email: String, password: String, completion: @escaping (Result<LoginResponse, Error>) -> Void) {
         request(path: "/login",
                 body: ["email": email, "password": password],
-                expecting: LoginResponse.self,
-                completion: completion)
+                expecting: LoginResponse.self) { [weak self] result in
+            switch result {
+            case .success(let response):
+                // ✅ Sauvegarde le token et l'utilisateur
+                self?.token = response.token
+                self?.currentUser = response.user
+                completion(.success(response))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
     }
 
     func register(payload: [String: Any],
                   completion: @escaping (Result<LoginResponse, Error>) -> Void) {
         request(path: "/register",
                 body: payload,
-                expecting: LoginResponse.self,
-                completion: completion)
+                expecting: LoginResponse.self) { [weak self] result in
+            switch result {
+            case .success(let response):
+                // ✅ Sauvegarde le token et l'utilisateur
+                self?.token = response.token
+                self?.currentUser = response.user
+                completion(.success(response))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
     }
 
     // MARK: - Connexion sociale
@@ -91,8 +168,22 @@ final class AuthService {
                      completion: @escaping (Result<LoginResponse, Error>) -> Void) {
         request(path: "/social",
                 body: ["provider": provider, "token": token],
-                expecting: LoginResponse.self,
-                completion: completion)
+                expecting: LoginResponse.self) { [weak self] result in
+            switch result {
+            case .success(let response):
+                self?.token = response.token
+                self?.currentUser = response.user
+                completion(.success(response))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+    
+    // MARK: - Déconnexion
+    func logout() {
+        token = nil
+        currentUser = nil
     }
 
     // MARK: - Méthode générique POST
@@ -142,7 +233,6 @@ final class AuthService {
             }
 
             guard (200...299).contains(status) else {
-                // ✅ Ici on décode le message d'erreur custom { "error": "..." }
                 if let apiError = try? self.decoder.decode(MessageResponse.self, from: data) {
                     let msg = apiError.error
                     return finish(.failure(NSError(domain: "AuthService", code: status,
@@ -162,4 +252,3 @@ final class AuthService {
         }.resume()
     }
 }
-
